@@ -1,58 +1,60 @@
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
-
-import org.apache.commons.io.FileUtils;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.WebDriver;
-
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.remote.DesiredCapabilities;
 
-class ScreenshotCapture{
-    public static void captureScreenshot (WebDriver driver, String screenshotName){
-        try {
-            TakesScreenshot ts = (TakesScreenshot)driver;
-            File source = ts.getScreenshotAs(OutputType.FILE);
-            String dest = "./" + screenshotName + ".png";
-            File destination = new File(dest);
-            FileUtils.copyFile(source, destination);
-        }
-        catch (IOException e) {e.printStackTrace();}
-    }
-}
+import java.io.File;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class GoogleScraper {
-    public static void main (String args[]){
+    public static void main(String args[]) {
         File file = new File("/usr/local/bin/chromedriver");
         System.setProperty("webdriver.chrome.driver", file.getAbsolutePath());
 
-        WebDriver driver = new ChromeDriver();
+        // Sample proxy from https://www.us-proxy.org/ for reference/test purpose. Paste your list of proxies in proxies.properties.
+        Proxy proxy = new Proxy();
+        proxy.setHttpProxy(new ProxyManager().getProxy());
+
+        DesiredCapabilities capabilities = DesiredCapabilities.chrome();
+        capabilities.setCapability("proxy", proxy);
+        capabilities.setJavascriptEnabled(true);
+
+        WebDriver driver = new ChromeDriver(capabilities);
         TakesScreenshot screen = (TakesScreenshot) driver;
 
-        driver.get("http://www.google.com");
-        WebElement element = driver.findElement(By.name("q"));
+        driver.get("https://www.google.co.in");
+        driver.manage().timeouts().implicitlyWait(5, TimeUnit.SECONDS) ;
 
-        element.sendKeys("Jaguar MonroevilleServices + 3780 William Penn Hwy + Monroeville+ PA+ 15146");
+        WebElement element = driver.findElement(By.name("q"));
+        String queryString = "Jaguar MonroevilleServices + 3780 William Penn Hwy + Monroeville + PA + 15146";  //Dealer name+ Street+ City+ State+ Zipcode
+
+        element.sendKeys(queryString);
         element.submit();
 
-        List<WebElement> findUrlElements = driver.findElements(By.xpath("//div[@class='rc']//h3[@class='r']/a"));
+        JSONArray search_output = new JSONArray();
+
+        List<WebElement> findUrlElements = driver.findElements(By.xpath(".//div[@class='rc']"));
         for (WebElement webElement : findUrlElements)
         {
-            System.out.println(webElement.getAttribute("href"));
-            System.out.println(webElement.getText());
+            JSONObject record = new JSONObject();
+            try{
+                record.put("title", webElement.findElement(By.xpath(".//h3[@class='r']")).getText());
+                record.put("text", webElement.findElement(By.xpath(".//span[@class='st']")).getText());
+                record.put("url", webElement.findElement(By.xpath(".//h3[@class='r']/a")).getAttribute("href"));
+                search_output.put(record);
+            }
+            catch (JSONException e){
+                e.printStackTrace();
+            }
         }
 
-//        List<WebElement> findElements = driver.findElements(By.xpath("//div[@class='rc']//h3[@class='s']"));
-//        for (WebElement webElement : findElements)
-//        {
-//            System.out.println(webElement.getText());
-//        }
-//        ScreenshotCapture.captureScreenshot(driver, "google");
+        System.out.println(search_output); //JSON output
 
+        ScreenshotCapture.captureScreenshot(driver, "google_search");
         driver.close();
+//        exit(1);
     }
 }
